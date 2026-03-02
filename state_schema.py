@@ -1,3 +1,4 @@
+#state_schema.py
 from typing import TypedDict, List, Dict, Optional, Any, Literal
 from typing_extensions import Annotated
 
@@ -7,7 +8,9 @@ class DebateState(TypedDict):
     meme_src: str
     news_path: str
     meme_content: str
+    ground_truth: int
     # 领域和角色信息
+    refer_dimension:List[int]
     domain: str
     profiles: Dict[str, str]
     
@@ -15,6 +18,7 @@ class DebateState(TypedDict):
     evidence_enabled: bool
     evidence_phase: str
     evidence_data: Optional[Dict]
+    evidence_score:List[float]
     affirmative_evidence: Optional[Dict]
     negative_evidence: Optional[Dict]
     

@@ -1,3 +1,4 @@
+#profile_generation.py
 from typing import Dict, Any
 from config import DATASET_NAME, TASK_FHM,MODEL_NAME,TEMPERATURE,TASK_HARM
 from tools import LLMTool
@@ -5,7 +6,6 @@ import json
 import json_repair
 def generate_profiles_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """生成角色画像节点"""
-    task = ""
     domain = state["domain"]
     profiles = {
     'Affirmative_Opening': f'As the first affirmative speaker.',
@@ -18,10 +18,6 @@ def generate_profiles_node(state: Dict[str, Any]) -> Dict[str, Any]:
     'Negative_Free': f'As the third negative speaker.',
     'Negative_Closing': f'As the final negative speaker.'
     }
-    if DATASET_NAME=="FHM":
-        task = TASK_FHM
-    elif DATASET_NAME=="HARM":
-        task = TASK_HARM
     meme_text = state['meme_text']
     meme_src = state["meme_src"]
     meme_content = state.get("meme_content", "")
@@ -30,7 +26,6 @@ def generate_profiles_node(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Meme text:\n{meme_text}\n\n"
         f"Meme content:\n{meme_content}\n\n"
         "Evaluation criteria to guide the debate:\n"
-        f"{task}\n\n"
         "Your task is to generate a concise expert profile for each of the following 8 debate roles. "
         "Each profile must:\n"
         "- Start with 'As ...';\n"
@@ -59,27 +54,16 @@ def generate_profiles_node(state: Dict[str, Any]) -> Dict[str, Any]:
     response = llm_tool.call_llm(
             system_prompt="You are an expert in generating role profiles for adversarial debate agents in zero-shot harmful meme detection.",
             messages=[{"role": "user", "content": prompt}],
-            #改
             #meme_src=meme_src,
             temperature=TEMPERATURE,
             max_tokens=512
         )
     try:
         profiles = json_repair.loads(response)
-        print("✅ 角色画像生成完成:")
+        print("角色画像生成完成...")
     except Exception as e:
         print(response)
         print("⚠️ JSON解析错误，使用预定义画像。")
-    # 预定义的专业画像
-
-    
     # 更新状态
     state["profiles"] = profiles
-    state["intermediate_results"]["profile_generation"] = profiles
-    
-    # 显示中间结果
-    # print("✅ 角色画像生成完成:")
-    # for role, profile in profiles.items():
-    #     print(f"  • {role}: {profile[:50]}...")
-    
     return state
