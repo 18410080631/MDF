@@ -11,8 +11,8 @@ if DATASET_NAME=="FHM":
     data_src = 'data/FHM/data/dev_with_description.jsonl'
     img_src = 'data/FHM/data'
 elif DATASET_NAME=="MAMI":
-    data_src = 'data/MAMI/test_with_description.tsv'
-    img_src = 'data/MAMI/img'
+    data_src = 'data/MAMI/data/test_with_description.tsv'
+    img_src = 'data/MAMI/data/test_images'
 elif DATASET_NAME=="HARM":
     data_src = 'data/HARM/test_with_description.jsonl'
     img_src = 'data/HARM/images'
@@ -75,46 +75,70 @@ if DATASET_NAME == 'FHM':
             continue
 elif DATASET_NAME == 'MAMI':
     import pandas as pd
+    import os
+    import json
+    import time
+    from tqdm import tqdm
+    # 1. 初始化缓存路径与已处理 ID 集合
+    cache_dir = DATASET_NAME
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    cache_path = os.path.join(cache_dir, "result.json")
+    processed_ids = set()
+    # 加载现有缓存
+    if os.path.exists(cache_path):
+        with open(cache_path, "r", encoding="utf-8") as f:
+            try:
+                cache_data = json.load(f)
+                processed_ids = set(cache_data.keys())
+                print(f"📦 已加载缓存，跳过 {len(processed_ids)} 个已处理样本")
+            except json.JSONDecodeError:
+                print("⚠️ 缓存文件格式错误，将重新开始")
+                cache_data = {}
+    else:
+        cache_data = {}
+    # 2. 读取 MAMI 数据集 (TSV 格式)
     data = pd.read_csv(data_src, sep='\t')
-    img_src = 'data/MAMI/test_images'
-    for idx, row in tqdm(data.iterrows(), total=len(data)):
-        meme_text = row['text']
-        meme_src = f"{img_src}/{row['file_name']}"
-        print(f"\n\n=== 处理样本 {idx + 1}/{len(data)} ===")
-        print("🤖 初始化辩论系统...")
-        print(f"📊 模因文本: {meme_text}")
-        print(f"🖼️  模因图片: {meme_src}")
+    # 假设图片存放在 data/MAMI/test_images，可根据实际情况调整
+    for idx, row in tqdm(data.iterrows(), total=len(data), desc="Processing MAMI"):
+        # 3. 解析当前行信息
+        file_name = row['file_name']
+        meme_id = str(file_name).split('.')[0] # 使用文件名作为唯一 id
+        # 检查是否已处理
+        if meme_id in processed_ids:
+            continue
+        meme_text = row.get('text', "")
+        meme_src = os.path.join(img_src, file_name)
+        # MAMI 通常有多个标签，这里取主标签 'misogynous'，或者根据需要调整
+        ground_truth = row.get('label') 
+        # 4. 检查图片是否存在
+        if not os.path.isfile(meme_src):
+            print(f"⚠️ 图片文件不存在: {meme_src}")
+            continue
+        # 5. 初始化并运行辩论系统
+        print(f"\n\n=== 处理 MAMI 样本 {meme_id} ({idx + 1}/{len(data)}) ===")
         debate_graph = DebateGraph(
             model_name=MODEL_NAME,
             temperature=TEMPERATURE
         )
-
-        # 记录开始时间
         start_time = time.time()
-        # 运行辩论
         try:
             final_state = debate_graph.run_debate(
                 meme_text=meme_text,
                 meme_src=meme_src,
                 news_path='sample_news.txt',
-                meme_content = row.get('description', "")
+                meme_content=row.get('description', ""), # 如果 CSV 里有描述字段
+                ground_truth=ground_truth
             )
-
-            # 总耗时
             total_time = time.time() - start_time
-            print(f"\n⏱️  总执行时间: {total_time:.2f} 秒")
-            # 显示关键结果
-            print("\n" + "="*60)
-            print("🎯 关键结果摘要")
-            print("="*60)
-            print(f"✅ 领域检测: {final_state['domain']}")
-            print(f"✅ 证据收集: {'已启用' if final_state['evidence_enabled'] else '已禁用'}")
-            print(f"✅ 总发言数: {len(final_state['transcript'])}")
-            print(f"✅ 最终判决: {final_state['verdict']}")
+            # 6. 实时保存结果到缓存
+            # 将 final_state 中可序列化的部分存入 cache_data
+            print(f"⏱️ 总执行时间: {total_time:.2f} 秒")
         except Exception as e:
-            print(f"\n❌ 执行过程中出错: {e}")
+            print(f"❌ 执行样本 {meme_id} 时出错: {e}")
             import traceback
             traceback.print_exc()
+            continue
 
 elif DATASET_NAME == 'HARM':
     with open(data_src, 'r', encoding='utf-8') as f:
